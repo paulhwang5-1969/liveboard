@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1420">
+<title>賽事直播字幕機</title>
+<style>
+:root{
+  --bg:#0f1420; --panel:#182033; --panel2:#212b42; --line:#2d3a57; --text:#eef2fb; --mute:#93a0bd;
+  --acc:#3d8bff; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444;
+  --font:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",system-ui,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;font-family:var(--font)}
+body.ctl{background:var(--bg);color:var(--text);padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+button{font:inherit;color:inherit;border:0;cursor:pointer}
+input,select,textarea{font:inherit;color:var(--text);background:#0b1020;border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+textarea{min-height:140px;resize:vertical}
+label{font-size:13px;color:var(--mute)}
+
+/* ---------- control panel ---------- */
+header.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(15,20,32,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+header.top h1{font-size:17px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--bad);display:inline-block;margin-right:6px}
+.dot.on{background:var(--ok)} .dot.mid{background:var(--warn)}
+.conn{font-size:12px;color:var(--mute);display:flex;align-items:center}
+.undo{background:var(--panel2);padding:6px 12px;border-radius:8px;font-size:14px}
+nav.tabs{position:fixed;bottom:0;left:0;right:0;z-index:30;display:flex;background:#0b101c;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs button{flex:1;background:none;padding:10px 0 12px;font-size:13px;color:var(--mute)}
+nav.tabs button b{display:block;font-size:20px;line-height:1.2}
+nav.tabs button.act{color:var(--acc)}
+main{padding:12px;max-width:760px;margin:0 auto}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}
+.card h3{margin:0 0 10px;font-size:15px;display:flex;align-items:center;gap:8px}
+.card h3 .sp{flex:1}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{min-width:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 6px;font-size:14px;text-align:center;user-select:none}
+.btn:active{transform:scale(.97);filter:brightness(1.2)}
+.btn.sm{padding:6px 10px;font-size:13px}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.hit{background:#14532d;border-color:#22c55e}
+.btn.hr{background:#7c2d12;border-color:#fb923c;font-weight:700}
+.btn.out{background:#3b1d1d;border-color:#ef4444}
+.btn.walk{background:#1e3a5f;border-color:#60a5fa}
+.btn.misc{background:#2e2a4a;border-color:#a78bfa}
+.btn.danger{background:#4c1010;border-color:var(--bad)}
+.btn.on{outline:2px solid var(--acc);background:#1b3a6b}
+.muted{color:var(--mute);font-size:13px}
+.preview{position:relative;width:100%;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:
+ repeating-conic-gradient(#2a3247 0 25%,#222a3d 0 50%) 0 0/24px 24px}
+.preview iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.scoreline{display:grid;grid-template-columns:14px 1fr auto auto auto;gap:8px;align-items:center;padding:6px 0}
+.scoreline .sw{width:14px;height:34px;border-radius:4px}
+.scoreline .nm{font-size:16px;font-weight:600}
+.scoreline .nm small{color:var(--mute);font-weight:400;margin-left:6px}
+.scoreline .sc{font-size:30px;font-weight:800;min-width:44px;text-align:center}
+.scoreline.bat .nm::after{content:" ● 進攻";color:var(--warn);font-size:12px}
+.inning{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px}
+.inning .lbl{font-size:20px;font-weight:700}
+.counts{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center}
+.pips{display:flex;gap:8px}
+.pip{width:26px;height:26px;border-radius:50%;border:2px solid #45506b;background:#0b1020}
+.pip.b.on{background:#22c55e;border-color:#22c55e}
+.pip.s.on{background:#facc15;border-color:#facc15}
+.pip.o.on{background:#ef4444;border-color:#ef4444}
+.diamond{position:relative;width:130px;height:130px;margin:0 auto}
+.base{position:absolute;width:46px;height:46px;transform:rotate(45deg);border:3px solid #6b7690;background:#0b1020;border-radius:4px}
+.base.on{background:#facc15;border-color:#facc15}
+.base.b1{right:6px;top:42px}.base.b2{left:42px;top:6px}.base.b3{left:6px;top:42px}
+.home{position:absolute;left:52px;bottom:4px;width:26px;height:26px;background:#d8dce6;clip-path:polygon(0 0,100% 0,100% 55%,50% 100%,0 55%)}
+.batter{display:flex;gap:12px;align-items:center}
+.batter .no{font-size:34px;font-weight:900;min-width:76px;height:64px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff}
+.batter .nm{font-size:22px;font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:13px}
+.chip.cur{background:var(--acc);border-color:var(--acc)}
+.tog{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}
+.tog:last-child{border:0}
+.switch{width:48px;height:28px;border-radius:999px;background:#3a4560;position:relative;flex:none}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:.15s}
+.switch.on{background:var(--ok)} .switch.on::after{left:23px}
+table.ed{width:100%;border-collapse:collapse}
+table.ed td{padding:3px 2px}
+table.ed input{padding:7px 6px}
+table.ed .x{background:none;color:var(--bad);font-size:18px;padding:4px 6px}
+.seg{display:flex;background:#0b1020;border-radius:10px;padding:3px;border:1px solid var(--line)}
+.seg button{flex:1;background:none;padding:8px;border-radius:8px;color:var(--mute)}
+.seg button.act{background:var(--panel2);color:var(--text)}
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#111827;border:1px solid var(--line);padding:10px 16px;border-radius:10px;z-index:99;opacity:0;transition:.2s;pointer-events:none;font-size:14px;max-width:90vw}
+.toast.on{opacity:1}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:80;display:flex;align-items:flex-end;justify-content:center}
+.modal .sheet{background:var(--panel);width:100%;max-width:760px;max-height:92vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+.prog{height:6px;background:#0b1020;border-radius:3px;overflow:hidden;margin:8px 0}
+.prog i{display:block;height:100%;width:0;background:var(--acc);transition:.2s}
+.help li{margin-bottom:6px;line-height:1.6}
+code.link{display:block;word-break:break-all;background:#0b1020;padding:8px;border-radius:8px;font-size:12px;margin:6px 0}
+
+/* ---------- overlay ---------- */
+body.ov{background:transparent;overflow:hidden;width:100vw;height:100vh}
+body.ov.bg{background:#1d2333}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;font-family:var(--font);color:#fff}
+.ovc{position:absolute;opacity:0;transition:opacity .45s, transform .45s;pointer-events:none}
+.ovc.on{opacity:1}
+
+/* score bug */
+#ov-score{left:48px;top:40px;transform:translateY(-20px);display:flex;filter:drop-shadow(0 6px 16px rgba(0,0,0,.45))}
+#ov-score.on{transform:none}
+.sb-main{background:rgba(12,16,28,.92);border-radius:12px 0 0 12px;overflow:hidden;min-width:360px}
+.sb-title{background:linear-gradient(90deg,#f5b700,#ff8a00);color:#111;font-size:20px;font-weight:800;padding:4px 16px;letter-spacing:1px;white-space:nowrap}
+.sb-team{display:flex;align-items:center;height:62px;border-top:1px solid rgba(255,255,255,.08)}
+.sb-team .c{width:12px;align-self:stretch}
+.sb-team .n{flex:1;font-size:32px;font-weight:800;padding:0 16px;letter-spacing:1px;white-space:nowrap}
+.sb-team .r{font-size:44px;font-weight:900;width:84px;text-align:center;background:rgba(255,255,255,.06);align-self:stretch;display:flex;align-items:center;justify-content:center}
+.sb-team.bat .n::before{content:"▶";font-size:20px;color:#f5b700;margin-right:8px;vertical-align:middle}
+.sb-side{background:rgba(26,32,50,.94);border-radius:0 12px 12px 0;padding:10px 18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-width:190px}
+.sb-inn{font-size:30px;font-weight:800}
+.sb-mid{display:flex;align-items:center;gap:14px}
+.sb-bases{position:relative;width:70px;height:56px}
+.sb-bases i{position:absolute;width:22px;height:22px;transform:rotate(45deg);border:3px solid #9aa3b8;background:transparent}
+.sb-bases i.on{background:#f5b700;border-color:#f5b700}
+.sb-bases i:nth-child(1){right:4px;top:22px}.sb-bases i:nth-child(2){left:24px;top:3px}.sb-bases i:nth-child(3){left:4px;top:22px}
+.sb-cnt{font-size:20px;font-weight:700;line-height:1.35}
+.sb-cnt span{display:inline-block;width:14px;height:14px;border-radius:50%;background:#444c60;margin-left:5px}
+.sb-cnt .b.on{background:#22c55e}.sb-cnt .s.on{background:#facc15}.sb-cnt .o.on{background:#ef4444}
+
+/* batter lower third */
+#ov-batter{left:70px;bottom:120px;transform:translateX(-40px);display:flex;filter:drop-shadow(0 8px 20px rgba(0,0,0,.5))}
+#ov-batter.on{transform:none}
+.lt-no{width:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:14px 0 0 14px}
+.lt-no small{font-size:20px;font-weight:700;opacity:.85}
+.lt-no b{font-size:76px;line-height:1;font-weight:900}
+.lt-body{background:rgba(12,16,28,.93);padding:14px 30px 14px 26px;border-radius:0 14px 14px 0;min-width:560px}
+.lt-tag{display:inline-block;font-size:20px;font-weight:700;background:rgba(255,255,255,.12);padding:2px 12px;border-radius:6px;margin-bottom:6px}
+.lt-name{font-size:58px;font-weight:900;letter-spacing:2px;line-height:1.15}
+.lt-name span{font-size:28px;font-weight:600;opacity:.75;margin-left:14px;letter-spacing:0}
+.lt-stat{font-size:26px;color:#cfd6e6;margin-top:4px}
+.lt-stat em{font-style:normal;color:#f5b700;font-weight:700}
+
+/* pitcher */
+#ov-pitcher{right:60px;bottom:120px;transform:translateX(40px)}
+#ov-pitcher.on{transform:none}
+.pc{background:rgba(12,16,28,.9);border-radius:12px;padding:12px 22px;display:flex;gap:14px;align-items:center;border-left:10px solid}
+.pc small{font-size:20px;opacity:.75}
+.pc b{font-size:36px}
+
+/* flash */
+#ov-flash{left:0;right:0;bottom:150px;display:flex;justify-content:center;transform:scale(.6)}
+#ov-flash.on{transform:scale(1);transition:opacity .25s, transform .35s cubic-bezier(.2,1.6,.4,1)}
+.fl{position:relative;text-align:center;padding:20px 80px 24px;border-radius:20px;background:linear-gradient(180deg,rgba(15,20,35,.95),rgba(8,10,20,.95));border:4px solid;box-shadow:0 0 60px rgba(0,0,0,.6)}
+.fl .big{font-size:120px;font-weight:900;letter-spacing:10px;line-height:1.05;background:linear-gradient(180deg,#fff 20%,var(--fc));-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 0 rgba(0,0,0,.4))}
+.fl .who{font-size:44px;font-weight:800;margin-top:6px}
+.fl .who i{font-style:normal;display:inline-block;padding:0 16px;border-radius:8px;margin-right:12px;color:#fff}
+.fl .rbi{font-size:34px;color:#f5b700;font-weight:800;margin-top:4px}
+.fl::before{content:"";position:absolute;inset:-4px;border-radius:20px;box-shadow:0 0 0 0 var(--fc);animation:pulse 1.2s ease-out infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 var(--fc)}100%{box-shadow:0 0 0 40px transparent}}
+
+/* cards */
+.bigcard{background:rgba(10,14,26,.94);border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden}
+.bigcard .hd{background:linear-gradient(90deg,#f5b700,#ff8a00);color:#111;font-size:34px;font-weight:900;padding:12px 34px;letter-spacing:2px}
+#ov-match{left:260px;right:260px;top:250px;transform:translateY(30px)}
+#ov-match.on{transform:none}
+.mc{display:flex;align-items:center;justify-content:space-around;padding:50px 30px}
+.mc .t{text-align:center;flex:1}
+.mc .t .bar{height:12px;border-radius:6px;margin:0 auto 16px;width:60%}
+.mc .t b{font-size:68px;font-weight:900;display:block}
+.mc .t span{font-size:90px;font-weight:900}
+.mc .vs{font-size:60px;font-weight:900;color:#f5b700;padding:0 30px}
+.mc-ft{text-align:center;font-size:30px;color:#cfd6e6;padding:0 0 30px}
+#ov-sched{left:360px;right:360px;top:140px;transform:translateY(30px)}
+#ov-sched.on{transform:none}
+.st{width:100%;border-collapse:collapse;font-size:32px}
+.st td{padding:14px 26px;border-top:1px solid rgba(255,255,255,.08)}
+.st td.tm{color:#f5b700;font-weight:800;width:150px}
+.st td.vs{color:#93a0bd;text-align:center;width:60px}
+.st td.r{color:#cfd6e6;font-size:26px;text-align:right}
+#ov-lineup{right:70px;top:150px;width:620px;transform:translateX(40px)}
+#ov-lineup.on{transform:none}
+.lu td{padding:9px 22px;font-size:32px;border-top:1px solid rgba(255,255,255,.08)}
+.lu td.o{color:#93a0bd;width:60px}
+.lu td.n{font-weight:900;width:90px;text-align:right}
+.lu td.p{color:#cfd6e6;text-align:right;font-size:26px}
+#ov-ticker{left:0;right:0;bottom:0;height:64px;background:rgba(8,10,20,.92);border-top:4px solid #f5b700;overflow:hidden;white-space:nowrap}
+#ov-ticker .tk{display:inline-block;font-size:34px;line-height:60px;padding-left:100%;animation:tick var(--dur,25s) linear infinite}
+@keyframes tick{to{transform:translateX(-100%)}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+'use strict';
+/* =========================================================
+   賽事直播字幕機  —  控制台 + 直播疊加層（同一個檔案）
+   控制台:  index.html
+   疊加層:  index.html?overlay=1&room=房間代碼
+   同步方式: 公開 MQTT (WebSocket) 保留訊息 + 同裝置 BroadcastChannel/postMessage
+   ========================================================= */
+const params = new URLSearchParams(location.search);
+const IS_OVERLAY = params.has('overlay');
+const BROKERS = ['wss://broker.emqx.io:8084/mqtt','wss://broker.hivemq.com:8884/mqtt'];
+const TOPIC = room => `liveboard-tw/v1/${room}/state`;
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ls = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+
+/* ---------------- 事件定義 ---------------- */
+const EVENTS = {
+  '1B': {label:'一壘安打', short:'一安', pa:1, ab:1, hit:1, adv:1, tone:'hit', color:'#22c55e'},
+  '2B': {label:'二壘安打', short:'二安', pa:1, ab:1, hit:1, adv:2, tone:'hit', color:'#22c55e'},
+  '3B': {label:'三壘安打', short:'三安', pa:1, ab:1, hit:1, adv:3, tone:'hit', color:'#22c55e'},
+  'HR': {label:'全壘打',   short:'全壘打', pa:1, ab:1, hit:1, adv:4, tone:'hr', color:'#ff8a00'},
+  'BB': {label:'四壞球保送', short:'保送', pa:1, ab:0, walk:1, tone:'walk', color:'#60a5fa'},
+  'HBP':{label:'觸身球',   short:'觸身', pa:1, ab:0, walk:1, tone:'walk', color:'#60a5fa'},
+  'E':  {label:'失誤上壘', short:'失誤', pa:1, ab:1, reach:1, tone:'walk', color:'#60a5fa'},
+  'FC': {label:'野手選擇', short:'野選', pa:1, ab:1, reach:1, tone:'walk', color:'#60a5fa'},
+  'K':  {label:'三振',     short:'三振', pa:1, ab:1, outs:1, tone:'out', color:'#ef4444'},
+  'GO': {label:'滾地球出局', short:'滾地', pa:1, ab:1, outs:1, tone:'out', color:'#ef4444'},
+  'FO': {label:'飛球接殺', short:'飛球', pa:1, ab:1, outs:1, tone:'out', color:'#ef4444'},
+  'DP': {label:'雙殺打',   short:'雙殺', pa:1, ab:1, outs:2, tone:'out', color:'#ef4444'},
+  'SF': {label:'高飛犧牲打', short:'犧飛', pa:1, ab:0, outs:1, tone:'out', color:'#a78bfa'},
+  'SAC':{label:'犧牲觸擊', short:'犧觸', pa:1, ab:0, outs:1, tone:'out', color:'#a78bfa'},
+  'SB': {label:'盜壘成功', short:'盜壘', pa:0, tone:'misc', color:'#a78bfa'},
+  'NICE':{label:'美技守備', short:'', pa:0, tone:'misc', color:'#f5b700'},
+};
+const EVENT_ORDER = [['1B','2B','3B','HR'],['BB','HBP','E','FC'],['K','GO','FO','DP'],['SF','SAC','SB','NICE']];
+const POS = {'投手':'P','捕手':'C','一壘手':'1B','二壘手':'2B','三壘手':'3B','游擊手':'SS','左外野手':'LF','中外野手':'CF','右外野手':'RF','指定打擊':'DH','自由手':'SF','短外野':'SF','游擊':'SS','左外野':'LF','中外野':'CF','右外野':'RF','一壘':'1B','二壘':'2B','三壘':'3B'};
+const POS_ZH = {P:'投手',C:'捕手','1B':'一壘手','2B':'二壘手','3B':'三壘手',SS:'游擊手',LF:'左外野手',CF:'中外野手',RF:'右外野手',DH:'指定打擊',SF:'自由手'};
+const posZh = p => POS_ZH[(p||'').toUpperCase()] || p || '';
+
+function defaultState() {
+  return {
+    v: 1, rev: 0,
+    info: {title: '2026 秋季盃 壘球邀請賽', venue: '', date: ''},
+    schedule: [],
+    teams: {
+      away: {name: '客隊', short: '客隊', color: '#1e6fd9', players: [], lineup: [], up: 0},
+      home: {name: '主隊', short: '主隊', color: '#d9361e', players: [], lineup: [], up: 0}
+    },
+    game: {inning: 1, half: 'top', balls: 0, strikes: 0, outs: 0, bases: [false,false,false], line: {away: [0], home: [0]}},
+    batter: null, pitcher: {away: '', home: ''},
+    stats: {},
+    show: {score: true, batter: true, pitcher: false, match: false, schedule: false, lineup: '', ticker: false},
+    ticker: '', flash: null,
+    opts: {autoAdvance: true, autoBases: true, autoInning: true, autoCount: true}
+  };
+}
+
+/* =========================================================
+   疊加層 (OVERLAY)
+   ========================================================= */
+function runOverlay() {
+  document.body.className = 'ov' + (params.has('bg') ? ' bg' : '');
+  const room = params.get('room') || '';
+  $('#app').innerHTML = `<div id="stage">
+    <div id="ov-score" class="ovc"></div>
+    <div id="ov-match" class="ovc"></div>
+    <div id="ov-sched" class="ovc"></div>
+    <div id="ov-lineup" class="ovc"></div>
+    <div id="ov-batter" class="ovc"></div>
+    <div id="ov-pitcher" class="ovc"></div>
+    <div id="ov-flash" class="ovc"></div>
+    <div id="ov-ticker" class="ovc"></div></div>`;
+  const stage = $('#stage');
+  const fit = () => {
+    const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+    stage.style.transform = `translate(${(innerWidth - 1920*s)/2}px,${(innerHeight - 1080*s)/2}px) scale(${s})`;
+  };
+  addEventListener('resize', fit); fit();
+
+  let S = null, lastFlash = null, firstLoad = true, flashing = false, flashTimer = null, lastRev = -1, lastTicker = '';
+  const set = (id, on, html) => {
+    const el = $('#' + id);
+    if (html !== undefined && el._h !== html) { el.innerHTML = html; el._h = html; }
+    el.classList.toggle('on', !!on);
+  };
+
+  function render() {
+    if (!S) return;
+    const g = S.game, T = S.teams, batTeam = g.half === 'top' ? 'away' : 'home';
+    const runs = t => (g.line[t] || []).reduce((a, b) => a + (+b || 0), 0);
+    const pips = (n, max, cls) => Array.from({length: max}, (_, i) => `<span class="${cls}${i < n ? ' on' : ''}"></span>`).join('');
+    // 計分板
+    const team = t => `<div class="sb-team${batTeam === t ? ' bat' : ''}"><div class="c" style="background:${esc(T[t].color)}"></div>
+      <div class="n">${esc(T[t].short || T[t].name)}</div><div class="r">${runs(t)}</div></div>`;
+    set('ov-score', S.show.score, `<div class="sb-main">${S.info.title ? `<div class="sb-title">${esc(S.info.title)}</div>` : ''}${team('away')}${team('home')}</div>
+      <div class="sb-side"><div class="sb-inn">${g.inning} 局${g.half === 'top' ? '上' : '下'}</div>
+      <div class="sb-mid"><div class="sb-bases"><i class="${g.bases[0]?'on':''}"></i><i class="${g.bases[1]?'on':''}"></i><i class="${g.bases[2]?'on':''}"></i></div>
+      <div class="sb-cnt">B${pips(g.balls,3,'b')}<br>S${pips(g.strikes,2,'s')}<br>O${pips(g.outs,2,'o')}</div></div></div>`);
+    // 打者
+    let bHtml = '', bOn = false;
+    if (S.batter) {
+      const t = S.batter.team, p = (T[t].players || []).find(x => x.no == S.batter.no) || {no: S.batter.no, name: ''};
+      const st = S.stats[t + '#' + p.no];
+      const order = lineupOf(S, t).indexOf(String(p.no));
+      let line = '今日首打席';
+      if (st && st.pa) line = `今日 <em>${st.ab} 打數 ${st.h} 安打</em>${st.rbi ? `　${st.rbi} 分打點` : ''}${st.log.length ? '　' + esc(st.log.join('、')) : ''}`;
+      bHtml = `<div class="lt-no" style="background:${esc(T[t].color)}"><small>${esc(T[t].short || T[t].name)}</small><b>${esc(p.no)}</b></div>
+        <div class="lt-body"><div class="lt-tag">${order >= 0 ? `第 ${order + 1} 棒` : '打者'}</div>
+        <div class="lt-name">${esc(p.name || ('#' + p.no))}<span>${esc(posZh(p.pos))}</span></div><div class="lt-stat">${line}</div></div>`;
+      bOn = S.show.batter && !flashing && !S.show.match && !S.show.schedule;
+    }
+    set('ov-batter', bOn, bHtml);
+    // 投手
+    const fTeam = batTeam === 'away' ? 'home' : 'away', pno = S.pitcher[fTeam];
+    let pHtml = '';
+    if (pno) {
+      const p = (T[fTeam].players || []).find(x => x.no == pno) || {no: pno, name: ''};
+      pHtml = `<div class="pc" style="border-color:${esc(T[fTeam].color)}"><div><small>${esc(T[fTeam].short || T[fTeam].name)}　投手</small><br><b>#${esc(p.no)} ${esc(p.name)}</b></div></div>`;
+    }
+    set('ov-pitcher', S.show.pitcher && pno && !flashing, pHtml);
+    // 對戰資訊卡
+    set('ov-match', S.show.match, `<div class="bigcard"><div class="hd">${esc(S.info.title || '今日賽事')}</div>
+      <div class="mc"><div class="t"><div class="bar" style="background:${esc(T.away.color)}"></div><b>${esc(T.away.name)}</b><span>${runs('away')}</span></div>
+      <div class="vs">VS</div>
+      <div class="t"><div class="bar" style="background:${esc(T.home.color)}"></div><b>${esc(T.home.name)}</b><span>${runs('home')}</span></div></div>
+      <div class="mc-ft">${esc([S.info.venue, S.info.date].filter(Boolean).join('　·　'))}</div></div>`);
+    // 賽程
+    const rows = (S.schedule || []).slice(0, 9).map(r => `<tr><td class="tm">${esc(r.time)}</td><td>${esc(r.away)}</td><td class="vs">vs</td><td>${esc(r.home)}</td><td class="r">${esc([r.field, r.note].filter(Boolean).join('　'))}</td></tr>`).join('');
+    set('ov-sched', S.show.schedule, `<div class="bigcard"><div class="hd">賽程表　${esc(S.info.date || '')}</div><table class="st">${rows || '<tr><td>尚未建立賽程</td></tr>'}</table></div>`);
+    // 先發名單
+    const lt = S.show.lineup;
+    if (lt && T[lt]) {
+      const lu = lineupOf(S, lt).slice(0, 12).map((no, i) => {
+        const p = T[lt].players.find(x => x.no == no) || {no, name: ''};
+        return `<tr><td class="o">${i + 1}</td><td class="n">${esc(p.no)}</td><td>${esc(p.name)}</td><td class="p">${esc(posZh(p.pos))}</td></tr>`;
+      }).join('');
+      set('ov-lineup', true, `<div class="bigcard"><div class="hd" style="background:${esc(T[lt].color)};color:#fff">${esc(T[lt].name)}　先發名單</div><table class="st lu">${lu}</table></div>`);
+    } else set('ov-lineup', false);
+    // 跑馬燈
+    if (S.ticker !== lastTicker) {
+      lastTicker = S.ticker;
+      const dur = Math.max(12, (S.ticker || '').length * 0.35);
+      $('#ov-ticker').innerHTML = `<div class="tk" style="--dur:${dur}s">${esc(S.ticker)}</div>`;
+    }
+    $('#ov-ticker').classList.toggle('on', !!(S.show.ticker && S.ticker));
+    $('#ov-ticker').style.display = (S.show.ticker && S.ticker) ? '' : 'none';
+    // 事件動畫
+    const f = S.flash;
+    if (f && f.id !== lastFlash) {
+      lastFlash = f.id;
+      if (!firstLoad) showFlash(f);
+    }
+    firstLoad = false;
+  }
+
+  function showFlash(f) {
+    const T = S.teams, el = $('#ov-flash');
+    const p = f.team ? ((T[f.team].players || []).find(x => x.no == f.no) || {no: f.no, name: ''}) : null;
+    const who = p ? `<div class="who"><i style="background:${esc(T[f.team].color)}">${esc(T[f.team].short || T[f.team].name)}</i>#${esc(p.no)} ${esc(p.name)}</div>` : (f.sub ? `<div class="who">${esc(f.sub)}</div>` : '');
+    const rbi = f.runs ? `<div class="rbi">${f.code === 'HR' && f.runs === 4 ? '滿貫全壘打！' : ''}打下 ${f.runs} 分</div>` : '';
+    el.innerHTML = `<div class="fl" style="--fc:${esc(f.color || '#f5b700')};border-color:${esc(f.color || '#f5b700')}"><div class="big">${esc(f.label)}</div>${who}${rbi}</div>`;
+    el._h = null;
+    el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+    flashing = true; render();
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => { el.classList.remove('on'); flashing = false; render(); }, f.code === 'HR' ? 6000 : 4500);
+  }
+
+  function receive(st) {
+    if (!st || typeof st !== 'object' || !st.game) return;
+    if (st.rev !== undefined && st.rev === lastRev && S) return;
+    lastRev = st.rev; S = st; render();
+  }
+  // 1) 控制台預覽（iframe postMessage）
+  addEventListener('message', e => { if (e.data && e.data.lbState) receive(e.data.lbState); });
+  // 2) 同一瀏覽器（BroadcastChannel）
+  try { const bc = new BroadcastChannel('lb-' + room); bc.onmessage = e => receive(e.data); } catch (e) {}
+  // 3) 網路同步（MQTT）
+  if (room) connectMqtt(room, false, receive, () => {});
+}
+
+/* =========================================================
+   MQTT 連線
+   ========================================================= */
+let mqttLoading = null;
+function loadMqtt() {
+  if (window.mqtt) return Promise.resolve();
+  if (mqttLoading) return mqttLoading;
+  mqttLoading = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js';
+    s.onload = res; s.onerror = () => {
+      const s2 = document.createElement('script');
+      s2.src = 'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js';
+      s2.onload = res; s2.onerror = rej; document.head.appendChild(s2);
+    };
+    document.head.appendChild(s);
+  });
+  return mqttLoading;
+}
+function connectMqtt(room, isPublisher, onState, onStatus) {
+  let idx = 0, client = null, fails = 0;
+  const api = {publish() {}, connected: false};
+  const start = () => {
+    loadMqtt().then(() => {
+      const url = BROKERS[idx % BROKERS.length];
+      client = mqtt.connect(url, {clientId: 'lb_' + Math.random().toString(16).slice(2, 10), keepalive: 30, reconnectPeriod: 3000, connectTimeout: 8000, clean: true});
+      client.on('connect', () => {
+        fails = 0; api.connected = true; onStatus('on', url);
+        if (!isPublisher) client.subscribe(TOPIC(room), {qos: 1});
+        else if (api._pending) api.publish(api._pending);
+      });
+      client.on('message', (t, msg) => { try { onState(JSON.parse(msg.toString())); } catch (e) {} });
+      client.on('close', () => { api.connected = false; onStatus('mid'); });
+      client.on('error', () => {
+        api.connected = false; onStatus('off');
+        if (++fails >= 2) { fails = 0; try { client.end(true); } catch (e) {} idx++; setTimeout(start, 500); }
+      });
+    }).catch(() => onStatus('off', '無法載入連線元件（請確認網路）'));
+  };
+  api.publish = payload => {
+    api._pending = payload;
+    if (client && api.connected) client.publish(TOPIC(room), payload, {qos: 1, retain: true});
+  };
+  start();
+  return api;
+}
+
+/* =========================================================
+   共用邏輯
+   ========================================================= */
+function lineupOf(S, t) {
+  const T = S.teams[t];
+  return (T.lineup && T.lineup.length ? T.lineup : T.players.map(p => p.no)).map(String);
+}
+
+/* =========================================================
+   控制台 (CONTROL)
+   ========================================================= */
+function runControl() {
+  document.body.className = 'ctl';
+  let room = ls.get('lb_room', null);
+  if (!room) { room = Math.random().toString(36).slice(2, 8); ls.set('lb_room', room); }
+  let S = ls.get('lb_state', null) || defaultState();
+  S = Object.assign(defaultState(), S);
+  S.opts = Object.assign(defaultState().opts, S.opts || {});
+  S.show = Object.assign(defaultState().show, S.show || {});
+  let undoStack = [], tab = ls.get('lb_tab', 'live'), teamTab = 'away', connState = 'off', pubTimer = null, net = null;
+  let bc = null; try { bc = new BroadcastChannel('lb-' + room); } catch (e) {}
+
+  const overlayUrl = () => location.href.split(/[?#]/)[0] + '?overlay=1&room=' + room;
+  const batTeam = () => S.game.half === 'top' ? 'away' : 'home';
+  const fieldTeam = () => S.game.half === 'top' ? 'home' : 'away';
+  const runs = t => (S.game.line[t] || []).reduce((a, b) => a + (+b || 0), 0);
+  const player = (t, no) => S.teams[t].players.find(p => p.no == no);
+  const toast = msg => { const el = $('#toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), 2200); };
+  const pushUndo = () => { undoStack.push(JSON.stringify(S)); if (undoStack.length > 60) undoStack.shift(); };
+
+  function commit(renderAll = true) {
+    S.rev = (S.rev || 0) + 1;
+    ls.set('lb_state', S);
+    clearTimeout(pubTimer);
+    pubTimer = setTimeout(publish, 80);
+    if (renderAll) renderDyn();
+  }
+  function publish() {
+    const payload = JSON.stringify(S);
+    if (net) net.publish(payload);
+    try { bc && bc.postMessage(S); } catch (e) {}
+    const fr = $('#pv'); if (fr && fr.contentWindow) fr.contentWindow.postMessage({lbState: S}, '*');
+  }
+
+  /* ---------- 比賽動作 ---------- */
+  function addRuns(t, n) {
+    const g = S.game, arr = g.line[t];
+    while (arr.length < g.inning) arr.push(0);
+    arr[g.inning - 1] = Math.max(0, (arr[g.inning - 1] || 0) + n);
+  }
+  function resetCount() { S.game.balls = 0; S.game.strikes = 0; }
+  function setBatterIdx(t, i) {
+    const lu = lineupOf(S, t); if (!lu.length) return;
+    S.teams[t].up = ((i % lu.length) + lu.length) % lu.length;
+    S.batter = {team: t, no: lu[S.teams[t].up]};
+  }
+  function advanceBatter(dir = 1) {
+    const t = batTeam(), lu = lineupOf(S, t);
+    if (!lu.length) return;
+    let i = S.batter && S.batter.team === t ? lu.indexOf(String(S.batter.no)) : -1;
+    if (i < 0) i = S.teams[t].up - (dir > 0 ? 1 : -1) + 0;
+    setBatterIdx(t, i + dir);
+  }
+  function changeHalf(dir = 1) {
+    const g = S.game;
+    if (dir > 0) { if (g.half === 'top') g.half = 'bottom'; else { g.half = 'top'; g.inning++; } }
+    else { if (g.half === 'bottom') g.half = 'top'; else if (g.inning > 1) { g.half = 'bottom'; g.inning--; } }
+    ['away', 'home'].forEach(t => { while (g.line[t].length < g.inning) g.line[t].push(0); });
+    g.outs = 0; g.bases = [false, false, false]; resetCount();
+    const t = batTeam(), lu = lineupOf(S, t);
+    S.batter = lu.length ? {team: t, no: lu[S.teams[t].up % lu.length]} : null;
+  }
+  function addOuts(n) {
+    S.game.outs += n;
+    if (S.game.outs >= 3) {
+      if (S.opts.autoInning) { changeHalf(1); toast(`三出局，換 ${S.game.inning} 局${S.game.half === 'top' ? '上' : '下'}`); }
+      else S.game.outs = 3;
+    }
+  }
+  function recordEvent(code) {
+    const ev = EVENTS[code]; if (!ev) return;
+    pushUndo();
+    const t = batTeam(), g = S.game;
+    const b = S.batter && S.batter.team === t ? S.batter : null;
+    let scored = 0;
+    if (S.opts.autoBases) {
+      const B = g.bases;
+      if (ev.adv) {
+        const nb = [false, false, false];
+        if (ev.adv >= 4) { scored = B.filter(Boolean).length + 1; }
+        else {
+          B.forEach((on, i) => { if (!on) return; const to = i + ev.adv; if (to >= 3) scored++; else nb[to] = true; });
+          nb[ev.adv - 1] = true;
+        }
+        g.bases = nb;
+      } else if (ev.walk) {
+        if (!B[0]) B[0] = true; else if (!B[1]) B[1] = true; else if (!B[2]) B[2] = true; else scored = 1;
+      } else if (ev.reach) { B[0] = true; }
+      else if (code === 'SF' && B[2]) { B[2] = false; scored = 1; }
+      else if (code === 'DP') { const k = B.findIndex(Boolean); if (k >= 0) B[k] = false; }
+      if (scored) addRuns(t, scored);
+    } else if (code === 'HR') { scored = 1; addRuns(t, 1); }
+    if (b && ev.pa) {
+      const key = t + '#' + b.no;
+      const st = S.stats[key] || (S.stats[key] = {pa: 0, ab: 0, h: 0, rbi: 0, log: []});
+      st.pa++; st.ab += ev.ab || 0; st.h += ev.hit || 0;
+      if (code !== 'E' && code !== 'DP') st.rbi += scored;
+      st.log.push(ev.short);
+    }
+    S.flash = {id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), code, label: ev.label, color: ev.color,
+      team: b ? t : (code === 'NICE' ? fieldTeam() : t), no: b ? b.no : '', runs: ev.pa ? scored : 0};
+    if (code === 'NICE') { S.flash.team = ''; S.flash.sub = S.teams[fieldTeam()].name; }
+    if (code === 'SB') { S.flash.team = ''; S.flash.no = ''; S.flash.sub = S.teams[t].name; }
+    if (ev.pa) {
+      resetCount();
+      if (S.opts.autoAdvance) advanceBatter(1);
+    }
+    if (ev.outs) addOuts(ev.outs);
+    commit();
+    toast(`${ev.label}${scored ? `，得 ${scored} 分` : ''}`);
+  }
+  function customFlash(text) {
+    if (!text) return;
+    pushUndo();
+    S.flash = {id: Date.now() + '-c', code: 'C', label: text, color: '#f5b700', team: '', no: ''};
+    commit();
+  }
+
+  /* ---------- 版面 ---------- */
+  function shell() {
+    $('#app').innerHTML = `
+      <header class="top"><h1 id="hdTitle"></h1><span class="conn"><span class="dot" id="cdot"></span><span id="ctext">連線中</span></span>
+      <button class="undo" id="undoBtn">↶ 復原</button></header>
+      <main id="main"></main>
+      <nav class="tabs">
+        <button data-tab="live"><b>🎬</b>直播</button>
+        <button data-tab="teams"><b>👥</b>球隊</button>
+        <button data-tab="sched"><b>📅</b>賽事/賽程</button>
+        <button data-tab="set"><b>⚙️</b>連線設定</button>
+      </nav><div class="toast" id="toast"></div><div id="modalHost"></div>`;
+    document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => { tab = b.dataset.tab; ls.set('lb_tab', tab); renderTab(); scrollTo(0, 0); });
+    $('#undoBtn').onclick = () => {
+      if (!undoStack.length) return toast('沒有可復原的動作');
+      S = JSON.parse(undoStack.pop()); S.flash = S.flash; commit(); renderTab(); toast('已復原');
+    };
+  }
+  function setConn(state, info) {
+    connState = state;
+    const d = $('#cdot'), t = $('#ctext'); if (!d) return;
+    d.className = 'dot' + (state === 'on' ? ' on' : state === 'mid' ? ' mid' : '');
+    t.textContent = state === 'on' ? '已連線' : state === 'mid' ? '重新連線…' : '未連線';
+    const si = $('#connInfo'); if (si) si.textContent = info || '';
+  }
+
+  function renderTab() {
+    document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('act', b.dataset.tab === tab));
+    const m = $('#main');
+    if (tab === 'live') m.innerHTML = liveStatic();
+    if (tab === 'teams') m.innerHTML = teamsHtml();
+    if (tab === 'sched') m.innerHTML = schedHtml();
+    if (tab === 'set') m.innerHTML = setHtml();
+    bindTab();
+    renderDyn();
+  }
+
+  /* ----- 直播頁 ----- */
+  function liveStatic() {
+    return `
+      <div class="card"><h3>畫面預覽<span class="sp"></span><button class="btn sm" id="pvTog">${ls.get('lb_pv', true) ? '隱藏' : '顯示'}</button></h3>
+        <div class="preview" id="pvBox" style="${ls.get('lb_pv', true) ? '' : 'display:none'}"><iframe id="pv" src="?overlay=1&preview=1&room=${room}"></iframe></div></div>
+      <div class="card" id="dScore"></div>
+      <div class="card"><h3>球數 / 出局 / 壘包</h3>
+        <div class="row" style="align-items:flex-start;gap:14px">
+          <div style="flex:1"><div class="counts" id="dCount"></div>
+            <div class="grid2" style="margin-top:10px">
+              <button class="btn walk" data-a="ball">壞球 +1</button><button class="btn hit" data-a="strike">好球 +1</button>
+              <button class="btn" data-a="foul">界外球</button><button class="btn out" data-a="out">出局 +1</button>
+              <button class="btn sm" data-a="clrCount">清除球數</button><button class="btn sm" data-a="clrBases">清空壘包</button>
+            </div></div>
+          <div><div class="diamond" id="dBases"></div><div class="muted" style="text-align:center">點壘包切換</div></div>
+        </div></div>
+      <div class="card" id="dBatter"></div>
+      <div class="card"><h3>打擊結果（按下即在直播畫面顯示）</h3>
+        ${EVENT_ORDER.map(r => `<div class="grid4" style="margin-bottom:8px">${r.map(c => `<button class="btn ${EVENTS[c].tone}" data-ev="${c}">${EVENTS[c].label}</button>`).join('')}</div>`).join('')}
+        <div class="row" style="margin-top:6px"><input id="cfText" placeholder="自訂大字幕，例如：換投、暫停、精彩美技"><button class="btn pri" id="cfBtn" style="flex:none">顯示</button></div>
+      </div>
+      <div class="card"><h3>畫面元件</h3><div id="dShow"></div>
+        <div class="row" style="margin-top:8px"><input id="tkText" placeholder="跑馬燈文字" value="${esc(S.ticker)}"><button class="btn sm" id="tkBtn" style="flex:none">更新</button></div>
+      </div>
+      <div class="card" id="dPitch"></div>`;
+  }
+  function renderDyn() {
+    $('#hdTitle') && ($('#hdTitle').textContent = S.info.title || '賽事直播字幕機');
+    if (tab !== 'live' || !$('#dScore')) return;
+    const g = S.game, T = S.teams, bt = batTeam();
+    const sl = t => `<div class="scoreline ${bt === t ? 'bat' : ''}"><div class="sw" style="background:${esc(T[t].color)}"></div>
+      <div class="nm">${esc(T[t].name)}<small>${t === 'away' ? '先攻' : '後攻'}</small></div>
+      <button class="btn sm" data-a="run-${t}">－</button><div class="sc">${runs(t)}</div><button class="btn sm pri" data-a="run+${t}">＋</button></div>`;
+    $('#dScore').innerHTML = `<h3>比分</h3>${sl('away')}${sl('home')}
+      <div class="inning"><button class="btn" data-a="halfPrev">◀ 上個半局</button><div class="lbl">${g.inning} 局${g.half === 'top' ? '上' : '下'}</div><button class="btn" data-a="halfNext">下個半局 ▶</button></div>`;
+    const pips = (n, max, c, a) => `<div class="pips">${Array.from({length: max}, (_, i) => `<div class="pip ${c}${i < n ? ' on' : ''}" data-a="${a}" data-v="${i + 1}"></div>`).join('')}</div>`;
+    $('#dCount').innerHTML = `<b>B</b>${pips(g.balls, 3, 'b', 'setB')}<b>S</b>${pips(g.strikes, 2, 's', 'setS')}<b>O</b>${pips(g.outs, 2, 'o', 'setO')}`;
+    $('#dBases').innerHTML = [0, 1, 2].map(i => `<div class="base b${i + 1}${g.bases[i] ? ' on' : ''}" data-a="base" data-v="${i}"></div>`).join('') + '<div class="home"></div>';
+    // 打者
+    const lu = lineupOf(S, bt);
+    const b = S.batter && S.batter.team === bt ? S.batter : null;
+    const p = b ? (player(bt, b.no) || {no: b.no, name: ''}) : null;
+    const st = b ? S.stats[bt + '#' + b.no] : null;
+    $('#dBatter').innerHTML = `<h3>目前打者 · ${esc(T[bt].name)}<span class="sp"></span><button class="btn sm" data-a="bPrev">◀ 上一棒</button><button class="btn sm pri" data-a="bNext">下一棒 ▶</button></h3>
+      ${p ? `<div class="batter"><div class="no" style="background:${esc(T[bt].color)}">${esc(p.no)}</div><div><div class="nm">${esc(p.name || '（未登錄姓名）')}</div>
+        <div class="muted">${lu.indexOf(String(p.no)) >= 0 ? `第 ${lu.indexOf(String(p.no)) + 1} 棒 · ` : ''}${esc(posZh(p.pos))}${st ? ` · 今日 ${st.ab} 打數 ${st.h} 安 ${st.log.join('、')}` : ''}</div></div></div>`
+        : `<div class="muted">尚未選擇打者。點下方背號，或先到「球隊」頁建立名單。</div>`}
+      <div class="row" style="margin-top:10px"><input id="bNo" inputmode="numeric" placeholder="輸入背號快速換人，例如 10"><button class="btn pri" data-a="bSet" style="flex:none">上場</button></div>
+      <div class="chips">${lu.map((no, i) => { const q = player(bt, no); return `<button class="chip${b && b.no == no ? ' cur' : ''}" data-a="bPick" data-v="${esc(no)}">${i + 1}. #${esc(no)} ${esc(q ? q.name : '')}</button>`; }).join('') || '<span class="muted">此隊尚無名單</span>'}</div>`;
+    // 顯示開關
+    const sw = (k, label, on) => `<div class="tog"><span>${label}</span><div class="switch${on ? ' on' : ''}" data-a="show" data-v="${k}"></div></div>`;
+    $('#dShow').innerHTML = sw('score', '計分板（左上）', S.show.score) + sw('batter', '打者字幕（左下）', S.show.batter) + sw('pitcher', '投手字幕（右下）', S.show.pitcher)
+      + sw('match', '對戰資訊大卡（開賽/中場）', S.show.match) + sw('schedule', '賽程表', S.show.schedule)
+      + sw('lu-away', `${esc(T.away.name)} 先發名單`, S.show.lineup === 'away') + sw('lu-home', `${esc(T.home.name)} 先發名單`, S.show.lineup === 'home')
+      + sw('ticker', '跑馬燈（底部）', S.show.ticker);
+    // 投手
+    const ft = fieldTeam();
+    $('#dPitch').innerHTML = `<h3>守備方投手 · ${esc(T[ft].name)}</h3><select data-a="pitch">${['<option value="">（未設定）</option>'].concat(T[ft].players.map(q => `<option value="${esc(q.no)}" ${S.pitcher[ft] == q.no ? 'selected' : ''}>#${esc(q.no)} ${esc(q.name)} ${esc(posZh(q.pos))}</option>`)).join('')}</select>`;
+  }
+
+  /* ----- 球隊頁 ----- */
+  function teamsHtml() {
+    const t = S.teams[teamTab];
+    return `<div class="seg" style="margin-bottom:12px"><button class="${teamTab === 'away' ? 'act' : ''}" data-tt="away">先攻：${esc(S.teams.away.name)}</button><button class="${teamTab === 'home' ? 'act' : ''}" data-tt="home">後攻：${esc(S.teams.home.name)}</button></div>
+      <div class="card"><h3>球隊資料</h3>
+        <div class="grid2"><div><label>隊名</label><input data-f="name" value="${esc(t.name)}"></div><div><label>簡稱（計分板用，2–4 字）</label><input data-f="short" value="${esc(t.short)}"></div></div>
+        <div class="row" style="margin-top:8px"><label style="flex:none">代表色</label><input type="color" data-f="color" value="${esc(t.color)}" style="height:40px;padding:2px"></div>
+      </div>
+      <div class="card"><h3>球員名單（${t.players.length} 人）<span class="sp"></span><button class="btn sm pri" data-a="imp-roster">📷 拍照/文字匯入</button></h3>
+        <table class="ed"><tr class="muted"><td style="width:70px">背號</td><td>姓名</td><td style="width:84px">守位</td><td style="width:34px"></td></tr>
+        ${t.players.map((p, i) => `<tr><td><input data-p="${i}" data-k="no" value="${esc(p.no)}" inputmode="numeric"></td><td><input data-p="${i}" data-k="name" value="${esc(p.name)}"></td><td><input data-p="${i}" data-k="pos" value="${esc(p.pos)}" placeholder="SS"></td><td><button class="x" data-a="pDel" data-v="${i}">✕</button></td></tr>`).join('')}
+        </table>
+        <div class="grid2" style="margin-top:8px"><button class="btn" data-a="pAdd">＋ 新增球員</button><button class="btn danger" data-a="pClr">清空名單</button></div>
+        <p class="muted">守位可填：P、C、1B、2B、3B、SS、LF、CF、RF、DH、SF（自由手）或中文。</p>
+      </div>
+      <div class="card"><h3>打擊順序</h3>
+        <label>依序輸入背號（空白或逗號分隔）。留空 = 依名單順序</label>
+        <input id="luText" value="${esc(t.lineup.join(' '))}" placeholder="例如：7 10 23 5 18 2 9 11 3">
+        <div class="grid2" style="margin-top:8px"><button class="btn pri" data-a="luSave">儲存打序</button><button class="btn" data-a="luFirst">從第 1 棒開始</button></div>
+      </div>`;
+  }
+  /* ----- 賽事 / 賽程頁 ----- */
+  function schedHtml() {
+    return `<div class="card"><h3>賽事資訊</h3>
+        <label>賽事名稱（顯示在計分板上方）</label><input data-i="title" value="${esc(S.info.title)}">
+        <div class="grid2" style="margin-top:8px"><div><label>場地</label><input data-i="venue" value="${esc(S.info.venue)}"></div><div><label>日期</label><input data-i="date" value="${esc(S.info.date)}" placeholder="11/22（六）"></div></div></div>
+      <div class="card"><h3>賽程（${S.schedule.length} 場）<span class="sp"></span><button class="btn sm pri" data-a="imp-sched">📷 拍照/文字匯入</button></h3>
+        <table class="ed"><tr class="muted"><td style="width:72px">時間</td><td>先攻</td><td>後攻</td><td style="width:80px">場地/備註</td><td style="width:34px"></td></tr>
+        ${S.schedule.map((r, i) => `<tr><td><input data-s="${i}" data-k="time" value="${esc(r.time)}"></td><td><input data-s="${i}" data-k="away" value="${esc(r.away)}"></td><td><input data-s="${i}" data-k="home" value="${esc(r.home)}"></td><td><input data-s="${i}" data-k="note" value="${esc(r.note)}"></td><td><button class="x" data-a="sDel" data-v="${i}">✕</button></td></tr>`).join('')}</table>
+        <div class="grid2" style="margin-top:8px"><button class="btn" data-a="sAdd">＋ 新增一場</button><button class="btn danger" data-a="sClr">清空賽程</button></div>
+        <p class="muted">每場右側可按「這場」把隊名帶入目前比賽：</p>
+        <div class="chips">${S.schedule.map((r, i) => `<button class="chip" data-a="sUse" data-v="${i}">${esc(r.time)} ${esc(r.away)} vs ${esc(r.home)} → 這場</button>`).join('')}</div>
+      </div>`;
+  }
+  /* ----- 設定頁 ----- */
+  function setHtml() {
+    const local = location.protocol === 'file:';
+    const o = S.opts, sw = (k, l) => `<div class="tog"><span>${l}</span><div class="switch${o[k] ? ' on' : ''}" data-a="opt" data-v="${k}"></div></div>`;
+    return `<div class="card"><h3>直播疊加層網址（貼到 PRISM 的 Web 小工具）</h3>
+        ${local ? '<p style="color:var(--warn)">⚠ 目前是從手機/電腦檔案直接開啟，PRISM 讀不到。請先依下方說明把這個檔案放上網路（GitHub Pages 等），再用網路上的網址開啟控制台。</p>' : ''}
+        <code class="link" id="ovUrl">${esc(overlayUrl())}</code>
+        <div class="grid2"><button class="btn pri" data-a="copyUrl">複製網址</button><button class="btn" data-a="openOv">開新分頁測試</button></div>
+        <p class="muted">房間代碼：<b>${room}</b>　連線狀態：<span id="connInfo"></span></p>
+        <button class="btn sm" data-a="newRoom">產生新房間代碼</button>
+        <p class="muted">提醒：資料經公開 MQTT 伺服器傳送，知道房間代碼的人可看到比分資料（與直播畫面相同內容）。不要放個資。</p></div>
+      <div class="card"><h3>自動化</h3>
+        ${sw('autoAdvance', '打席結束自動換下一棒')}${sw('autoBases', '自動推進壘包與計分（安打時跑者推進同數壘包）')}${sw('autoInning', '三出局自動換局')}${sw('autoCount', '四壞自動保送／三好球自動三振')}
+        <p class="muted">自動結果不對時，按右上「↶ 復原」或手動調整壘包與比分。</p></div>
+      <div class="card"><h3>資料</h3><div class="grid2">
+        <button class="btn" data-a="newGame">開新一場（保留名單/賽程）</button><button class="btn" data-a="swap">先後攻對調</button>
+        <button class="btn" data-a="export">匯出備份</button><label class="btn" style="color:var(--text)">匯入備份<input type="file" accept=".json" id="impJson" hidden></label>
+        <button class="btn danger" data-a="wipe">全部清除</button></div></div>
+      <div class="card help"><h3>使用流程</h3><ol>
+        <li>「賽事/賽程」頁輸入賽事名稱，拍照匯入賽程表。</li>
+        <li>「球隊」頁拍照匯入兩隊名單（背號＋姓名），設定打擊順序與代表色。</li>
+        <li>手機安裝 <b>PRISM Live Studio</b>（免費，iOS/Android），登入 YouTube。</li>
+        <li>PRISM 直播準備畫面 → 向左滑開「My Studio」→「Widget」→「Web」→ 貼上上方網址，調整成全螢幕並鎖定圖層。</li>
+        <li>開始直播。另一支手機/平板（或分割畫面）開這個控制台操作：選打者、按「二壘安打」等按鈕，畫面即時出現字幕。</li></ol></div>`;
+  }
+
+  /* ---------- 事件綁定 ---------- */
+  function bindTab() {
+    const m = $('#main');
+    m.onclick = e => {
+      const evb = e.target.closest('[data-ev]'); if (evb) return recordEvent(evb.dataset.ev);
+      const tt = e.target.closest('[data-tt]'); if (tt) { teamTab = tt.dataset.tt; renderTab(); return; }
+      const a = e.target.closest('[data-a]'); if (!a) return;
+      act(a.dataset.a, a.dataset.v, a);
+    };
+    m.onchange = e => {
+      const el = e.target;
+      if (el.dataset.a === 'pitch') { pushUndo(); S.pitcher[fieldTeam()] = el.value; commit(); }
+      if (el.id === 'impJson') importJson(el.files[0]);
+    };
+    m.oninput = e => {
+      const el = e.target, t = S.teams[teamTab];
+      if (el.dataset.f) { t[el.dataset.f] = el.value; commit(false); }
+      else if (el.dataset.p !== undefined) { t.players[+el.dataset.p][el.dataset.k] = el.value.trim(); commit(false); }
+      else if (el.dataset.i) { S.info[el.dataset.i] = el.value; commit(false); renderDyn(); }
+      else if (el.dataset.s !== undefined) { S.schedule[+el.dataset.s][el.dataset.k] = el.value; commit(false); }
+    };
+    if (tab === 'live') {
+      $('#pvTog').onclick = () => { const v = !ls.get('lb_pv', true); ls.set('lb_pv', v); $('#pvBox').style.display = v ? '' : 'none'; $('#pvTog').textContent = v ? '隱藏' : '顯示'; };
+      $('#pv').onload = () => publish();
+      $('#cfBtn').onclick = () => { customFlash($('#cfText').value.trim()); };
+      $('#tkBtn').onclick = () => { pushUndo(); S.ticker = $('#tkText').value; if (S.ticker) S.show.ticker = true; commit(); toast('跑馬燈已更新'); };
+      m.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'bNo') act('bSet'); });
+    }
+  }
+
+  function act(a, v, el) {
+    const g = S.game, bt = batTeam();
+    switch (a) {
+      case 'run+away': case 'run+home': case 'run-away': case 'run-home':
+        pushUndo(); addRuns(a.slice(4), a[3] === '+' ? 1 : -1); commit(); break;
+      case 'halfNext': pushUndo(); changeHalf(1); commit(); break;
+      case 'halfPrev': pushUndo(); changeHalf(-1); commit(); break;
+      case 'ball': pushUndo(); g.balls++; if (g.balls >= 4) { g.balls = 3; if (S.opts.autoCount) { undoStack.pop(); return recordEvent('BB'); } } commit(); break;
+      case 'strike': pushUndo(); g.strikes++; if (g.strikes >= 3) { g.strikes = 2; if (S.opts.autoCount) { undoStack.pop(); return recordEvent('K'); } } commit(); break;
+      case 'foul': pushUndo(); if (g.strikes < 2) g.strikes++; commit(); break;
+      case 'out': pushUndo(); addOuts(1); commit(); break;
+      case 'clrCount': pushUndo(); resetCount(); commit(); break;
+      case 'clrBases': pushUndo(); g.bases = [false, false, false]; commit(); break;
+      case 'setB': pushUndo(); g.balls = g.balls == v ? v - 1 : +v; commit(); break;
+      case 'setS': pushUndo(); g.strikes = g.strikes == v ? v - 1 : +v; commit(); break;
+      case 'setO': pushUndo(); g.outs = g.outs == v ? v - 1 : +v; commit(); break;
+      case 'base': pushUndo(); g.bases[+v] = !g.bases[+v]; commit(); break;
+      case 'bNext': pushUndo(); advanceBatter(1); resetCount(); commit(); break;
+      case 'bPrev': pushUndo(); advanceBatter(-1); commit(); break;
+      case 'bPick': { pushUndo(); const i = lineupOf(S, bt).indexOf(String(v)); if (i >= 0) setBatterIdx(bt, i); else S.batter = {team: bt, no: v}; resetCount(); commit(); break; }
+      case 'bSet': {
+        const no = ($('#bNo').value || '').trim(); if (!no) return;
+        pushUndo(); const i = lineupOf(S, bt).indexOf(no);
+        if (i >= 0) setBatterIdx(bt, i); else S.batter = {team: bt, no};
+        if (!player(bt, no)) toast(`#${no} 不在名單中，只會顯示背號`);
+        resetCount(); commit(); $('#bNo').value = ''; break;
+      }
+      case 'show': {
+        pushUndo();
+        if (v.startsWith('lu-')) { const t = v.slice(3); S.show.lineup = S.show.lineup === t ? '' : t; }
+        else {
+          S.show[v] = !S.show[v];
+          if (v === 'match' && S.show.match) { S.show.schedule = false; S.show.lineup = ''; }
+          if (v === 'schedule' && S.show.schedule) { S.show.match = false; S.show.lineup = ''; }
+        }
+        commit(); break;
+      }
+      // 球隊
+      case 'pAdd': S.teams[teamTab].players.push({no: '', name: '', pos: ''}); commit(false); renderTab(); break;
+      case 'pDel': S.teams[teamTab].players.splice(+v, 1); commit(false); renderTab(); break;
+      case 'pClr': if (confirm('清空這隊的球員名單？')) { S.teams[teamTab].players = []; S.teams[teamTab].lineup = []; commit(false); renderTab(); } break;
+      case 'luSave': {
+        const t = S.teams[teamTab]; t.lineup = ($('#luText').value || '').split(/[\s,，、]+/).filter(Boolean);
+        const miss = t.lineup.filter(no => !t.players.some(p => p.no == no));
+        commit(false); toast(miss.length ? `已儲存，但 #${miss.join(', #')} 不在名單中` : '打序已儲存'); break;
+      }
+      case 'luFirst': pushUndo(); S.teams[teamTab].up = 0; if (batTeam() === teamTab) setBatterIdx(teamTab, 0); commit(false); toast('下次輪到第 1 棒'); break;
+      case 'imp-roster': openImport('roster'); break;
+      // 賽程
+      case 'imp-sched': openImport('sched'); break;
+      case 'sAdd': S.schedule.push({time: '', away: '', home: '', field: '', note: ''}); commit(false); renderTab(); break;
+      case 'sDel': S.schedule.splice(+v, 1); commit(false); renderTab(); break;
+      case 'sClr': if (confirm('清空賽程？')) { S.schedule = []; commit(false); renderTab(); } break;
+      case 'sUse': {
+        const r = S.schedule[+v]; pushUndo();
+        S.teams.away.name = r.away; S.teams.away.short = r.away.slice(0, 4);
+        S.teams.home.name = r.home; S.teams.home.short = r.home.slice(0, 4);
+        commit(false); toast(`目前比賽：${r.away} vs ${r.home}（記得到球隊頁匯入名單）`); break;
+      }
+      // 設定
+      case 'opt': S.opts[v] = !S.opts[v]; commit(false); renderTab(); break;
+      case 'copyUrl': copy(overlayUrl()); break;
+      case 'openOv': open(overlayUrl() + '&bg=1', '_blank'); break;
+      case 'newRoom': if (confirm('換新的房間代碼後，PRISM 裡的網址也要重新貼上。確定？')) { room = Math.random().toString(36).slice(2, 8); ls.set('lb_room', room); location.reload(); } break;
+      case 'newGame': if (confirm('開新一場：比分、球數、個人成績歸零（名單、賽程保留）。確定？')) {
+        pushUndo(); const d = defaultState(); S.game = d.game; S.stats = {}; S.batter = null; S.flash = null; S.pitcher = d.pitcher;
+        S.teams.away.up = 0; S.teams.home.up = 0; const lu = lineupOf(S, 'away'); if (lu.length) S.batter = {team: 'away', no: lu[0]};
+        commit(false); toast('已開新一場');
+      } break;
+      case 'swap': pushUndo(); [S.teams.away, S.teams.home] = [S.teams.home, S.teams.away]; S.stats = {}; S.batter = null; commit(false); toast('先後攻已對調'); break;
+      case 'export': {
+        const blob = new Blob([JSON.stringify(S, null, 1)], {type: 'application/json'});
+        const aEl = document.createElement('a'); aEl.href = URL.createObjectURL(blob); aEl.download = `直播字幕機備份_${new Date().toISOString().slice(0, 10)}.json`; aEl.click(); break;
+      }
+      case 'wipe': if (confirm('全部清除（含名單、賽程）？')) { pushUndo(); S = defaultState(); commit(false); renderTab(); } break;
+    }
+  }
+  function copy(text) {
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast('已複製網址'), () => {
+      const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); toast('已複製網址'); } catch (e) { prompt('請手動複製：', text); } ta.remove();
+    });
+  }
+  function importJson(file) {
+    if (!file) return;
+    file.text().then(t => { const d = JSON.parse(t); if (!d.teams || !d.game) throw 0; pushUndo(); S = Object.assign(defaultState(), d); commit(false); renderTab(); toast('已匯入備份'); })
+      .catch(() => toast('檔案格式不正確'));
+  }
+
+  /* ---------- 拍照 / 文字匯入（OCR） ---------- */
+  function openImport(kind) {
+    const host = $('#modalHost');
+    const isRoster = kind === 'roster';
+    host.innerHTML = `<div class="modal"><div class="sheet">
+      <h3 style="margin-top:0">${isRoster ? `匯入「${esc(S.teams[teamTab].name)}」球員名單` : '匯入賽程'}</h3>
+      <div class="grid2"><label class="btn pri" style="color:#fff">📷 拍照<input type="file" accept="image/*" capture="environment" id="ocrCam" hidden></label>
+      <label class="btn" style="color:var(--text)">🖼 選擇圖片<input type="file" accept="image/*" id="ocrFile" hidden></label></div>
+      <div class="muted" id="ocrMsg" style="margin-top:8px">拍名單/賽程表（盡量正面、光線充足、字清楚）。第一次辨識需下載中文字庫，約 10–30 秒。也可以直接在下方貼上文字（例如從 LINE 複製）。</div>
+      <div class="prog"><i id="ocrBar"></i></div>
+      <textarea id="ocrText" placeholder="${isRoster ? '每行一位，例如：\n10 王小明 游擊手\n7 陳大文 P\n#23 林志豪 CF' : '每行一場，例如：\n09:00 猛虎隊 vs 飛鷹隊 A場\n10:30 雷霆 對 閃電 B場'}"></textarea>
+      <div class="grid2" style="margin-top:8px"><button class="btn" id="ocrParse">解析預覽</button><button class="btn" id="ocrClose">取消</button></div>
+      <div id="ocrPrev" style="margin-top:10px"></div></div></div>`;
+    const close = () => host.innerHTML = '';
+    $('#ocrClose').onclick = close;
+    const onFile = e => { const f = e.target.files[0]; if (f) runOcr(f); };
+    $('#ocrCam').onchange = onFile; $('#ocrFile').onchange = onFile;
+    let parsed = [];
+    $('#ocrParse').onclick = () => {
+      const txt = $('#ocrText').value;
+      parsed = isRoster ? parseRoster(txt) : parseSchedule(txt);
+      const prev = $('#ocrPrev');
+      if (!parsed.length) { prev.innerHTML = '<p class="muted">解析不到資料，請修改上方文字（每行：背號 姓名 守位）後再按一次。</p>'; return; }
+      prev.innerHTML = `<p class="muted">解析到 ${parsed.length} 筆，確認後套用（套用後仍可逐筆修改）：</p>
+        <table class="ed">${parsed.map(r => isRoster ? `<tr><td><b>#${esc(r.no)}</b></td><td>${esc(r.name)}</td><td>${esc(posZh(r.pos))}</td></tr>`
+          : `<tr><td>${esc(r.time)}</td><td>${esc(r.away)}</td><td>vs</td><td>${esc(r.home)}</td><td>${esc(r.note)}</td></tr>`).join('')}</table>
+        <div class="grid2" style="margin-top:8px"><button class="btn pri" id="ocrRep">取代原有資料</button><button class="btn" id="ocrApp">加在後面</button></div>`;
+      const apply = replace => {
+        pushUndo();
+        if (isRoster) { const t = S.teams[teamTab]; t.players = replace ? parsed : t.players.concat(parsed); if (replace) t.lineup = []; }
+        else S.schedule = replace ? parsed : S.schedule.concat(parsed);
+        commit(false); close(); renderTab(); toast(`已匯入 ${parsed.length} 筆`);
+      };
+      $('#ocrRep').onclick = () => apply(true); $('#ocrApp').onclick = () => apply(false);
+    };
+  }
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve();
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+  }
+  async function runOcr(file) {
+    const msg = $('#ocrMsg'), bar = $('#ocrBar');
+    msg.textContent = '載入辨識引擎…';
+    try {
+      await loadTesseract();
+      const img = await shrinkImage(file);
+      const r = await Tesseract.recognize(img, 'chi_tra+eng', {logger: m => {
+        if (m.status === 'recognizing text') { msg.textContent = `辨識中… ${Math.round(m.progress * 100)}%`; bar.style.width = (m.progress * 100) + '%'; }
+        else if (/load/.test(m.status)) msg.textContent = '下載字庫中（只有第一次比較久）…';
+      }});
+      let text = r.data.text.replace(/(?<=[㐀-鿿])[ \t]+(?=[㐀-鿿])/g, '');
+      $('#ocrText').value = text.trim();
+      msg.textContent = '辨識完成！請檢查並修正下方文字，再按「解析預覽」。';
+      bar.style.width = '100%';
+      $('#ocrParse').click();
+    } catch (e) { msg.textContent = '辨識失敗（可能是網路問題）。可改用手動貼上文字。'; }
+  }
+  function shrinkImage(file) {
+    return new Promise(res => {
+      const img = new Image(); img.onload = () => {
+        const max = 2000, k = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas'); c.width = img.width * k; c.height = img.height * k;
+        const x = c.getContext('2d'); x.filter = 'grayscale(1) contrast(1.3)'; x.drawImage(img, 0, 0, c.width, c.height);
+        res(c);
+      }; img.onerror = () => res(file); img.src = URL.createObjectURL(file);
+    });
+  }
+  return {start() {
+    shell(); renderTab();
+    net = connectMqtt(room, true, () => {}, setConn);
+    publish();
+    window.addEventListener('pageshow', publish);
+  }};
+}
+
+/* ---------------- 文字解析 ---------------- */
+function normLine(l) {
+  return l.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 65248))
+    .replace(/[Ａ-Ｚａ-ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 65248))
+    .replace(/[｜|]/g, ' ').replace(/(?<=[㐀-鿿])\s+(?=[㐀-鿿])/g, '').trim();
+}
+function extractPos(s) {
+  let pos = '';
+  const keys = Object.keys(POS).sort((a, b) => b.length - a.length);
+  for (const k of keys) if (s.includes(k)) { pos = POS[k]; s = s.replace(k, ' '); break; }
+  if (!pos) {
+    const m = s.match(/(?:^|\s)(P|C|1B|2B|3B|SS|LF|CF|RF|DH|SF)(?:\s|$)/i);
+    if (m) { pos = m[1].toUpperCase(); s = s.replace(m[0], ' '); }
+  }
+  return {pos, rest: s};
+}
+function parseRoster(text) {
+  const out = [], seen = new Set();
+  text.split(/\n/).map(normLine).filter(Boolean).forEach(line => {
+    if (/^(背號|號碼|姓名|No\.?\s*$)/i.test(line) || /教練|領隊|管理|隊長$/.test(line) && !/\d/.test(line)) return;
+    let {pos, rest} = extractPos(line);
+    let no = '', name = '';
+    let m = rest.match(/^\s*(?:No\.?|#)?\s*(\d{1,3})\s*[號\.\-、:：)）]?\s*(.+)$/i);
+    if (m) { no = m[1]; name = m[2]; }
+    else if ((m = rest.match(/^(.+?)\s*#?\s*(\d{1,3})\s*號?\s*$/))) { name = m[1]; no = m[2]; }
+    if (!no) return;
+    name = name.replace(/\d{4,}.*/, '').replace(/[^㐀-鿿A-Za-z·．\.\s'-]/g, ' ').trim().split(/\s{2,}/)[0].trim();
+    if (!name && !no) return;
+    if (seen.has(no)) return; seen.add(no);
+    out.push({no: String(+no), name, pos});
+  });
+  return out;
+}
+function parseSchedule(text) {
+  const out = [];
+  text.split(/\n/).map(normLine).filter(Boolean).forEach(line => {
+    const tm = line.match(/(\d{1,2})\s*[:：.]\s*(\d{2})/);
+    let rest = line;
+    let time = '';
+    if (tm) { time = tm[1].padStart(2, '0') + ':' + tm[2]; rest = rest.replace(tm[0], ' '); }
+    rest = rest.replace(/^\s*(第?\s*\d+\s*場|場次\s*\d+|G\d+)\s*/i, ' ');
+    const sp = rest.split(/\s*(?:vs\.?|VS\.?|V\.S\.?|對戰|對|ＶＳ|Ｖ\.Ｓ|×|—|–)\s*/);
+    if (sp.length < 2) return;
+    const left = sp[0].trim().split(/\s+/), right = sp.slice(1).join(' ').trim().split(/\s+/);
+    const away = left[left.length - 1] || '', home = right[0] || '';
+    const note = [left.slice(0, -1).join(' '), right.slice(1).join(' ')].filter(Boolean).join(' ');
+    if (!away || !home) return;
+    out.push({time, away, home, field: '', note});
+  });
+  return out;
+}
+
+/* ---------------- 啟動 ---------------- */
+if (IS_OVERLAY) runOverlay(); else runControl().start();
+</script>
+</body>
+</html>
